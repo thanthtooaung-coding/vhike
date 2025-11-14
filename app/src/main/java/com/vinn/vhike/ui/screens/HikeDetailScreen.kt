@@ -3,34 +3,34 @@ package com.vinn.vhike.ui.screens
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Landscape
-import androidx.compose.material.icons.filled.LocalParking
-import androidx.compose.material.icons.filled.Loop
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.SquareFoot
-import androidx.compose.material.icons.filled.Straighten
-import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.ShutterSpeed
+import androidx.compose.material.icons.filled.Terrain
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -42,7 +42,7 @@ import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
-import com.vinn.vhike.data.db.Hike
+import com.vinn.vhike.data.db.Observation
 import com.vinn.vhike.ui.theme.AppTeal
 import com.vinn.vhike.ui.theme.LightGray
 import com.vinn.vhike.ui.viewmodel.HikeViewModel
@@ -54,103 +54,57 @@ import java.util.Locale
 fun HikeDetailScreen(
     hikeId: Long,
     onNavigateBack: () -> Unit,
-    onEditHike: (Long) -> Unit,
     viewModel: HikeViewModel = hiltViewModel()
 ) {
     val allHikes by viewModel.allHikes.collectAsState(initial = emptyList())
     val hike = allHikes.find { it.id == hikeId }
 
+    // State for tabs
+    var selectedTab by remember { mutableStateOf(0) }
+    val tabs = listOf("Observations", "Coming Soon")
+
+    // Fetch observations
+    val observations by viewModel.getObservationsForHike(hikeId)
+        .collectAsState(initial = emptyList())
+
     val scrollState = rememberScrollState()
 
-    if (hike == null) {
-        // --- Loading/Error State with consistent TopBar ---
-        Scaffold(
-            topBar = {
-                // --- CHANGED TO CenterAlignedTopAppBar ---
-                CenterAlignedTopAppBar(
-                    title = { Text("Hike Logged") },
-                    navigationIcon = {
-                        IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.Default.Close, contentDescription = "Close")
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.White,
-                        titleContentColor = Color.Black
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = hike?.hikeName ?: "Hike Details",
+                        fontWeight = FontWeight.Bold
                     )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.White,
+                    titleContentColor = Color.Black
                 )
-            }
-        ) { innerPadding ->
+            )
+        }
+    ) { paddingValues ->
+        if (hike == null) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding),
+                    .padding(paddingValues),
                 contentAlignment = Alignment.Center
             ) {
                 Text("Hike not found or loading...")
             }
-        }
-    } else {
-        // --- Main Content Scaffold ---
-        Scaffold(
-            topBar = {
-                // --- CHANGED TO CenterAlignedTopAppBar ---
-                CenterAlignedTopAppBar(
-                    title = { Text("Hike Logged") },
-                    navigationIcon = {
-                        IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.Default.Close, contentDescription = "Close")
-                        }
-                    },
-                    actions = {
-                        TextButton(onClick = onNavigateBack) {
-                            Text(
-                                "Done",
-                                color = AppTeal,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.White,
-                        titleContentColor = Color.Black
-                    )
-                )
-            },
-            bottomBar = {
-                Button(
-                    onClick = { onEditHike(hikeId) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppTeal),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Icon(Icons.Default.Edit, contentDescription = "Edit")
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Edit Hike",
-                        fontSize = 18.sp,
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    )
-                }
-            }
-        ) { paddingValues ->
-
-            // --- Map and Duration variables ---
+        } else {
+            // --- Map variables ---
             val cameraPositionState = rememberCameraPositionState()
-            val uiSettings = remember {
-                MapUiSettings(
-                    zoomControlsEnabled = false,
-                    zoomGesturesEnabled = false,
-                    scrollGesturesEnabled = false,
-                    rotationGesturesEnabled = false,
-                    tiltGesturesEnabled = false
-                )
-            }
+            val uiSettings = remember { MapUiSettings(zoomControlsEnabled = false) }
             val hikeLocation = LatLng(hike.latitude ?: 0.0, hike.longitude ?: 0.0)
 
-            // Update camera when hike data is loaded
             LaunchedEffect(hikeLocation) {
                 if (hike.latitude != null && hike.longitude != null) {
                     cameraPositionState.position = CameraPosition.fromLatLngZoom(hikeLocation, 12f)
@@ -160,123 +114,126 @@ fun HikeDetailScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues) // Apply padding from Scaffold
-                    .verticalScroll(scrollState)
+                    .padding(paddingValues)
                     .background(Color.White)
             ) {
-                // --- MAP CONTAINER ---
-                Box(modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .aspectRatio(4f / 3f)
-                    .clip(RoundedCornerShape(12.dp))
+                // This Column is scrollable ONLY if the "Map" tab is NOT selected
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f) // Take up remaining space
+                        .then(
+                            if (selectedTab == 0) Modifier.verticalScroll(scrollState)
+                            else Modifier
+                        )
                 ) {
-                    // --- GoogleMap ---
-                    if (hike.latitude != null && hike.longitude != null) {
-                        GoogleMap(
-                            modifier = Modifier.fillMaxSize(), // Fills the parent Box
-                            cameraPositionState = cameraPositionState,
-                            uiSettings = uiSettings
+                    // --- MAP/IMAGE HEADER ---
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(250.dp)
+                            .background(LightGray)
+                    ) {
+                        if (hike.latitude != null && hike.longitude != null) {
+                            GoogleMap(
+                                modifier = Modifier.fillMaxSize(),
+                                cameraPositionState = cameraPositionState,
+                                uiSettings = uiSettings
+                            ) {
+                                Marker(
+                                    state = MarkerState(position = hikeLocation),
+                                    title = hike.hikeName
+                                )
+                            }
+                        }
+                        // --- Text Overlay ---
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.2f))
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.Bottom
                         ) {
-                            Marker(
-                                state = MarkerState(position = hikeLocation),
-                                title = hike.hikeName
+                            Text(
+                                text = hike.hikeName,
+                                color = Color.White,
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = hike.location,
+                                color = Color.White,
+                                fontSize = 16.sp
                             )
                         }
-                    } else {
-                        // Fallback if no location is saved
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize() // Fills the parent Box
-                                .background(LightGray),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("No map data available", color = Color.Gray)
+                    }
+
+                    // --- STATS ROW ---
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceAround
+                    ) {
+                        StatItem(
+                            value = "${hike.hikeLength} km",
+                            label = "DISTANCE"
+                        )
+                        StatItem(
+                            value = hike.duration.ifBlank { "N/A" },
+                            label = "DURATION"
+                        )
+                        StatItem(
+                            value = hike.elevation?.let { "${it.toInt()} ft" } ?: "N/A",
+                            label = "ELEVATION"
+                        )
+                    }
+
+                    // --- TABS ---
+                    TabRow(
+                        selectedTabIndex = selectedTab,
+                        containerColor = Color.White,
+                        contentColor = AppTeal
+                    ) {
+                        tabs.forEachIndexed { index, title ->
+                            Tab(
+                                selected = selectedTab == index,
+                                onClick = { selectedTab = index },
+                                text = { Text(title) },
+                                selectedContentColor = AppTeal,
+                                unselectedContentColor = Color.Gray
+                            )
                         }
                     }
-                }
-                // --- END OF MAP CONTAINER ---
 
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = hike.location,
-                        color = Color.Gray,
-                        fontSize = 16.sp
-                    )
-                    Text(
-                        text = hike.hikeName,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 28.sp,
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    )
-                    val dateFormat = SimpleDateFormat("MMMM dd, yyyy", Locale.getDefault())
-                    Text(
-                        text = dateFormat.format(hike.hikeDate),
-                        color = Color.Gray,
-                        fontSize = 16.sp
-                    )
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        StatCard(
-                            icon = Icons.Default.Straighten,
-                            label = "Length",
-                            value = "${hike.hikeLength} ${"km"}",
-                            modifier = Modifier.weight(1f)
-                        )
-                        StatCard(
-                            icon = Icons.Default.Timer,
-                            label = "Duration",
-                            value = hike.duration.ifBlank { "N/A" },
-                            modifier = Modifier.weight(1f)
-                        )
+                    when (selectedTab) {
+                        0 -> ObservationList(observations = observations)
+                        1 -> Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .fillMaxHeight()
+                        ) {
+                            if (hike.latitude != null && hike.longitude != null) {
+                                GoogleMap(
+                                    modifier = Modifier.fillMaxSize(),
+                                    cameraPositionState = cameraPositionState,
+                                    uiSettings = uiSettings.copy(zoomControlsEnabled = true)
+                                ) {
+                                    Marker(
+                                        state = MarkerState(position = hikeLocation),
+                                        title = hike.hikeName
+                                    )
+                                }
+                            } else {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("No map data available", color = Color.Gray)
+                                }
+                            }
+                        }
                     }
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        StatCard(
-                            icon = Icons.Default.Landscape,
-                            label = "Difficulty",
-                            value = hike.difficultyLevel,
-                            modifier = Modifier.weight(1f)
-                        )
-                        StatCard(
-                            icon = Icons.Default.Loop,
-                            label = "Trail Type",
-                            value = hike.trailType,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    InfoCard(
-                        icon = Icons.Default.LocalParking,
-                        text = "Parking ${if (hike.parkingAvailable) "Available" else "Not Available"}"
-                    )
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    Text(
-                        text = "Notes",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = hike.description ?: "No notes added for this hike.",
-                        fontSize = 16.sp,
-                        lineHeight = 24.sp,
-                        color = Color.DarkGray
-                    )
-
-                    Spacer(modifier = Modifier.height(24.dp))
                 }
             }
         }
@@ -284,47 +241,85 @@ fun HikeDetailScreen(
 }
 
 @Composable
-fun StatCard(icon: ImageVector, label: String, value: String, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(LightGray)
-            .padding(16.dp)
-    ) {
-        Column {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = AppTeal,
-                modifier = Modifier
-                    .size(40.dp)
-                    .background(Color.White, RoundedCornerShape(8.dp))
-                    .padding(8.dp)
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(text = label, color = Color.Gray, fontSize = 14.sp)
-            Text(text = value, color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+fun StatItem(value: String, label: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = value,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = AppTeal
+        )
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = Color.Gray
+        )
+    }
+}
+
+@Composable
+fun ObservationList(observations: List<Observation>) {
+    if (observations.isEmpty()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(32.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("No observations added for this hike.", color = Color.Gray)
+        }
+    } else {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 800.dp), // Avoid LazyColumn in Column scroll conflict
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(observations) { observation ->
+                ObservationItem(observation = observation)
+            }
         }
     }
 }
 
 @Composable
-fun InfoCard(icon: ImageVector, text: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(LightGray)
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
+fun ObservationItem(observation: Observation) {
+    val timeFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = text,
-            tint = AppTeal,
-            modifier = Modifier.size(24.dp)
-        )
-        Spacer(modifier = Modifier.width(16.dp))
-        Text(text = text, color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Image(
+                painter = rememberAsyncImagePainter(
+                    "https://placehold.co/200x200/e0e0e0/666666?text=Photo"
+                ),
+                contentDescription = observation.observationText,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(RoundedCornerShape(8.dp))
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = observation.observationText,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+                Text(
+                    text = "Time: ${timeFormat.format(observation.observationTime)}",
+                    color = Color.Gray,
+                    fontSize = 14.sp
+                )
+            }
+        }
     }
 }

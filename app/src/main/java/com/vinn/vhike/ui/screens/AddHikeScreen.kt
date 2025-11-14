@@ -46,12 +46,23 @@ fun AddHikeScreen(
     navBackStackEntry: NavBackStackEntry,
     onNavigateBack: () -> Unit,
     onNavigateToMap: () -> Unit,
+    onHikeSaved: (Long) -> Unit, // ADDED: Callback for navigation
     viewModel: HikeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.addHikeUiState.collectAsState()
     val scrollState = rememberScrollState()
 
     val context = LocalContext.current
+
+    // NEW: Observe save state and navigate
+    val newHikeId by viewModel.newHikeId.collectAsState()
+
+    LaunchedEffect(newHikeId) {
+        newHikeId?.let { id ->
+            onHikeSaved(id)
+            viewModel.onNavigationToConfirmationDone() // Reset the state
+        }
+    }
 
     LaunchedEffect(navBackStackEntry) {
         navBackStackEntry.savedStateHandle.getLiveData<LatLng>("pickedLocation")
@@ -81,9 +92,7 @@ fun AddHikeScreen(
         bottomBar = {
             Button(
                 onClick = {
-                    viewModel.saveNewHike()
-                    // Optionally navigate back after save
-                    // if (uiState.errorMessage == null) onNavigateBack()
+                    viewModel.saveNewHike() // Just call save, LaunchedEffect handles navigation
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -139,7 +148,7 @@ fun AddHikeScreen(
             FormTextField(
                 label = "Description",
                 placeholder = "Share some details about the hike...",
-                value = uiState.description ?: "",
+                value = uiState.description,
                 onValueChange = { viewModel.onDescriptionChanged(it) },
                 singleLine = false,
                 modifier = Modifier.height(120.dp)
@@ -152,48 +161,60 @@ fun AddHikeScreen(
                 onDateSelected = { viewModel.onDateSelected(it) }
             )
 
-            // --- Length & Duration ---
+            // --- Length (Full Width) ---
+            Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                Text(
+                    text = "Length",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.DarkGray,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .border(1.dp, LightGray, RoundedCornerShape(12.dp))
+                ) {
+                    OutlinedTextField(
+                        value = uiState.hikeLength?.toString() ?: "",
+                        onValueChange = { viewModel.onLengthChanged(it) },
+                        placeholder = { Text("e.g. 5.2") },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = TextFieldDefaults.outlinedTextFieldColors(
+                            containerColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
+                            focusedBorderColor = Color.Transparent
+                        )
+                    )
+                    // Unit Toggle (mi/km)
+                    UnitToggle(
+                        selectedUnit = uiState.lengthUnit,
+                        onUnitChange = { viewModel.onLengthUnitChanged(it) }
+                    )
+                }
+            }
+
+            // --- Duration & Elevation ---
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Length",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.DarkGray,
-                        modifier = Modifier.padding(bottom = 4.dp)
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .border(1.dp, LightGray, RoundedCornerShape(12.dp))
-                    ) {
-                        OutlinedTextField(
-                            value = uiState.hikeLength?.toString() ?: "",
-                            onValueChange = { viewModel.onLengthChanged(it) },
-                            placeholder = { Text("e.g") },
-                            modifier = Modifier.weight(1f),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            colors = TextFieldDefaults.outlinedTextFieldColors(
-                                containerColor = Color.Transparent,
-                                unfocusedBorderColor = Color.Transparent,
-                                focusedBorderColor = Color.Transparent
-                            )
-                        )
-                        // Unit Toggle (mi/km)
-                        UnitToggle(
-                            selectedUnit = uiState.lengthUnit,
-                            onUnitChange = { viewModel.onLengthUnitChanged(it) }
-                        )
-                    }
-                }
                 TimePickerField(
                     label = "Duration",
                     value = uiState.duration,
                     onTimeSelected = { viewModel.onDurationChanged(it) },
                     modifier = Modifier.weight(1f)
+                )
+                // NEW: Elevation Field
+                FormTextField(
+                    label = "Elevation (ft)",
+                    placeholder = "e.g. 2425",
+                    value = uiState.elevation,
+                    onValueChange = { viewModel.onElevationChanged(it) },
+                    modifier = Modifier.weight(1f),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true
                 )
             }
 
@@ -237,6 +258,7 @@ fun FormTextField(
     modifier: Modifier = Modifier,
     singleLine: Boolean = true,
     readOnly: Boolean = false,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default, // MODIFIED
     trailingIcon: @Composable (() -> Unit)? = null
 ) {
     Column(modifier = modifier.padding(vertical = 8.dp)) {
@@ -259,7 +281,8 @@ fun FormTextField(
             ),
             singleLine = singleLine,
             readOnly = readOnly,
-            trailingIcon = trailingIcon
+            trailingIcon = trailingIcon,
+            keyboardOptions = keyboardOptions // MODIFIED
         )
     }
 }
@@ -307,7 +330,9 @@ fun DatePickerField(
             value = dateText,
             onValueChange = {},
             placeholder = { Text("Select a date", color = Color.Gray) },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { datePickerDialog.show() }, // Make the whole field clickable
             shape = RoundedCornerShape(12.dp),
             colors = TextFieldDefaults.outlinedTextFieldColors(
                 containerColor = LightGray,
@@ -315,10 +340,9 @@ fun DatePickerField(
                 focusedBorderColor = AppTeal
             ),
             readOnly = true,
+            enabled = false, // Disable text field interaction
             trailingIcon = {
-                IconButton(onClick = { datePickerDialog.show() }) {
-                    Icon(Icons.Default.CalendarToday, "Select Date")
-                }
+                Icon(Icons.Default.CalendarToday, "Select Date")
             }
         )
     }
@@ -334,7 +358,6 @@ fun TimePickerField(
 ) {
     val context = LocalContext.current
 
-    // Parse existing time or use defaults
     val timeParts = value.split(":").map { it.trim() }
     val currentHour = timeParts.getOrNull(0)?.toIntOrNull() ?: 0
     val currentMinute = timeParts.getOrNull(1)?.toIntOrNull() ?: 0
@@ -363,7 +386,9 @@ fun TimePickerField(
             value = value,
             onValueChange = {},
             placeholder = { Text("HH:MM", color = Color.Gray) },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { timePickerDialog.show() },
             shape = RoundedCornerShape(12.dp),
             colors = TextFieldDefaults.outlinedTextFieldColors(
                 containerColor = LightGray,
@@ -371,10 +396,9 @@ fun TimePickerField(
                 focusedBorderColor = AppTeal
             ),
             readOnly = true,
+            enabled = false,
             trailingIcon = {
-                IconButton(onClick = { timePickerDialog.show() }) {
-                    Icon(Icons.Default.Timer, "Select Time")
-                }
+                Icon(Icons.Default.Timer, "Select Time")
             }
         )
     }
@@ -521,10 +545,10 @@ fun RadioGroupField(
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Checkbox(
-                    checked = option == selectedValue,
-                    onCheckedChange = { onValueSelected(option) },
-                    colors = CheckboxDefaults.colors(checkedColor = AppTeal)
+                RadioButton(
+                    selected = option == selectedValue,
+                    onClick = { onValueSelected(option) },
+                    colors = RadioButtonDefaults.colors(selectedColor = AppTeal)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(text = option, fontSize = 16.sp)

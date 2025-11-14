@@ -18,5 +18,6 @@ data class Hike(
     val description: String?,
     val latitude: Double? = null,
     val longitude: Double? = null,
-    val duration: String
+    val duration: String,
+    val elevation: Double? = null
 )

@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.android.gms.maps.model.LatLng
 import com.vinn.vhike.data.db.Hike
+import com.vinn.vhike.data.db.Observation
 import com.vinn.vhike.data.repository.HikeRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -30,17 +31,14 @@ class HikeViewModel @Inject constructor(
     private val _addHikeUiState = MutableStateFlow(AddHikeFormState())
     val addHikeUiState: StateFlow<AddHikeFormState> = _addHikeUiState.asStateFlow()
 
+    private val _newHikeId = MutableStateFlow<Long?>(null)
+    val newHikeId: StateFlow<Long?> = _newHikeId.asStateFlow()
+
     private val _searchFilterState = MutableStateFlow(SearchFilters())
     val searchFilterState: StateFlow<SearchFilters> = _searchFilterState.asStateFlow()
 
-    val searchResults: Flow<List<Hike>> = _searchFilterState.combine(
-        hikeRepository.allHikes
-    ) { filters, _ ->
-        emptyList()
-    }
     private val _searchResultState = MutableStateFlow<List<Hike>>(emptyList())
     val searchResultState: StateFlow<List<Hike>> = _searchResultState.asStateFlow()
-
 
     fun onHikeNameChanged(name: String) {
         _addHikeUiState.value = _addHikeUiState.value.copy(hikeName = name, errorMessage = null)
@@ -52,17 +50,21 @@ class HikeViewModel @Inject constructor(
         _addHikeUiState.value = _addHikeUiState.value.copy(description = description)
     }
     fun onDateSelected(date: Date) {
-        _addHikeUiState.value = _addHikeUiState.value.copy(hikeDate = date)
+        _addHikeUiState.value = _addHikeUiState.value.copy(hikeDate = date, errorMessage = null)
     }
     fun onLengthChanged(length: String) {
         val lengthAsDouble = length.toDoubleOrNull()
-        _addHikeUiState.value = _addHikeUiState.value.copy(hikeLength = lengthAsDouble)
+        _addHikeUiState.value = _addHikeUiState.value.copy(hikeLength = lengthAsDouble, errorMessage = null)
     }
     fun onLengthUnitChanged(unit: String) {
         _addHikeUiState.value = _addHikeUiState.value.copy(lengthUnit = unit)
     }
     fun onDurationChanged(duration: String) {
         _addHikeUiState.value = _addHikeUiState.value.copy(duration = duration)
+    }
+    // NEW: Handle elevation
+    fun onElevationChanged(elevation: String) {
+        _addHikeUiState.value = _addHikeUiState.value.copy(elevation = elevation)
     }
     fun onDifficultyChanged(difficulty: String) {
         _addHikeUiState.value = _addHikeUiState.value.copy(difficultyLevel = difficulty)
@@ -113,6 +115,8 @@ class HikeViewModel @Inject constructor(
             _addHikeUiState.value = currentState.copy(errorMessage = "Please enter a valid length.")
             return
         }
+        // NEW: Parse elevation
+        val elevationAsDouble = currentState.elevation.toDoubleOrNull()
 
         viewModelScope.launch {
             val newHike = Hike(
@@ -126,14 +130,26 @@ class HikeViewModel @Inject constructor(
                 description = currentState.description,
                 latitude = currentState.latitude,
                 longitude = currentState.longitude,
-                duration = currentState.duration
+                duration = currentState.duration,
+                elevation = elevationAsDouble
             )
-            hikeRepository.addNewHike(newHike)
+            // MODIFIED: Get new ID from repository
+            val newId = hikeRepository.addNewHike(newHike)
+
             // Reset form
             _addHikeUiState.value = AddHikeFormState()
+
+            // NEW: Signal navigation
+            _newHikeId.value = newId
         }
     }
 
+    // NEW: Reset navigation signal
+    fun onNavigationToConfirmationDone() {
+        _newHikeId.value = null
+    }
+
+    // --- Search Functions ---
     fun onSearchNameChanged(name: String) {
         _searchFilterState.value = _searchFilterState.value.copy(name = name)
     }
@@ -166,6 +182,11 @@ class HikeViewModel @Inject constructor(
         _searchFilterState.value = SearchFilters()
         _searchResultState.value = emptyList()
     }
+
+    // --- Observation Functions ---
+    fun getObservationsForHike(hikeId: Long): Flow<List<Observation>> {
+        return hikeRepository.getObservations(hikeId)
+    }
 }
 
 data class AddHikeFormState(
@@ -176,6 +197,7 @@ data class AddHikeFormState(
     val hikeLength: Double? = null,
     val lengthUnit: String = "km",
     val duration: String = "",
+    val elevation: String = "", // NEW
     val difficultyLevel: String = "Easy",
     val parkingAvailable: Boolean = false,
     val trailType: String = "Loop",

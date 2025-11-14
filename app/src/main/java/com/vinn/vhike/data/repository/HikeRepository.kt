@@ -15,8 +15,8 @@ class HikeRepository @Inject constructor(private val hikeDao: HikeDao) {
 
     fun getHikeDetails(hikeId: Long): Flow<Hike?> = hikeDao.getHikeById(hikeId)
 
-    suspend fun addNewHike(hike: Hike) {
-        hikeDao.insertHike(hike)
+    suspend fun addNewHike(hike: Hike): Long {
+        return hikeDao.insertHike(hike)
     }
 
     suspend fun updateHikeDetails(hike: Hike) {
