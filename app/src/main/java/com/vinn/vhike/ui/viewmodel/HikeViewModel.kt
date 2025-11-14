@@ -40,6 +40,11 @@ class HikeViewModel @Inject constructor(
     private val _searchResultState = MutableStateFlow<List<Hike>>(emptyList())
     val searchResultState: StateFlow<List<Hike>> = _searchResultState.asStateFlow()
 
+    // --- NEW: Observation Form State ---
+    private val _addObservationUiState = MutableStateFlow(AddObservationFormState())
+    val addObservationUiState: StateFlow<AddObservationFormState> = _addObservationUiState.asStateFlow()
+
+    // --- Hike Form Functions ---
     fun onHikeNameChanged(name: String) {
         _addHikeUiState.value = _addHikeUiState.value.copy(hikeName = name, errorMessage = null)
     }
@@ -62,7 +67,6 @@ class HikeViewModel @Inject constructor(
     fun onDurationChanged(duration: String) {
         _addHikeUiState.value = _addHikeUiState.value.copy(duration = duration)
     }
-    // NEW: Handle elevation
     fun onElevationChanged(elevation: String) {
         _addHikeUiState.value = _addHikeUiState.value.copy(elevation = elevation)
     }
@@ -103,6 +107,7 @@ class HikeViewModel @Inject constructor(
 
     fun saveNewHike() {
         val currentState = _addHikeUiState.value
+        // ... (validation logic) ...
         if (currentState.hikeName.isBlank() || currentState.location.isBlank()) {
             _addHikeUiState.value = currentState.copy(errorMessage = "Name and Location are required.")
             return
@@ -115,7 +120,6 @@ class HikeViewModel @Inject constructor(
             _addHikeUiState.value = currentState.copy(errorMessage = "Please enter a valid length.")
             return
         }
-        // NEW: Parse elevation
         val elevationAsDouble = currentState.elevation.toDoubleOrNull()
 
         viewModelScope.launch {
@@ -133,18 +137,12 @@ class HikeViewModel @Inject constructor(
                 duration = currentState.duration,
                 elevation = elevationAsDouble
             )
-            // MODIFIED: Get new ID from repository
             val newId = hikeRepository.addNewHike(newHike)
-
-            // Reset form
             _addHikeUiState.value = AddHikeFormState()
-
-            // NEW: Signal navigation
             _newHikeId.value = newId
         }
     }
 
-    // NEW: Reset navigation signal
     fun onNavigationToConfirmationDone() {
         _newHikeId.value = null
     }
@@ -187,6 +185,60 @@ class HikeViewModel @Inject constructor(
     fun getObservationsForHike(hikeId: Long): Flow<List<Observation>> {
         return hikeRepository.getObservations(hikeId)
     }
+
+    fun getObservationDetails(observationId: Long): Flow<Observation?> {
+        return hikeRepository.getObservationDetails(observationId)
+    }
+
+    fun onObservationTextChanged(text: String) {
+        _addObservationUiState.value = _addObservationUiState.value.copy(observationText = text, errorMessage = null)
+    }
+
+    fun onObservationTimeChanged(date: Date) {
+        _addObservationUiState.value = _addObservationUiState.value.copy(observationTime = date)
+    }
+
+    fun onObservationCommentsChanged(comments: String) {
+        _addObservationUiState.value = _addObservationUiState.value.copy(additionalComments = comments)
+    }
+
+    fun onObservationPhotoAdded(url: String) {
+        _addObservationUiState.value = _addObservationUiState.value.copy(photoUrl = url)
+    }
+
+    fun onObservationLocationSet(latLng: LatLng) {
+        _addObservationUiState.value = _addObservationUiState.value.copy(
+            latitude = latLng.latitude,
+            longitude = latLng.longitude
+        )
+    }
+
+    fun resetObservationForm() {
+        _addObservationUiState.value = AddObservationFormState()
+    }
+
+    fun saveNewObservation(hikeId: Long) {
+        val currentState = _addObservationUiState.value
+        if (currentState.observationText.isBlank()) {
+            _addObservationUiState.value = currentState.copy(errorMessage = "Observation text is required.")
+            return
+        }
+
+        viewModelScope.launch {
+            val newObservation = Observation(
+                hikeId = hikeId,
+                observationText = currentState.observationText,
+                observationTime = currentState.observationTime ?: Date(),
+                additionalComments = currentState.additionalComments,
+                photoUrl = currentState.photoUrl,
+                latitude = currentState.latitude,
+                longitude = currentState.longitude
+            )
+            hikeRepository.addObservation(newObservation)
+
+            _addObservationUiState.value = AddObservationFormState()
+        }
+    }
 }
 
 data class AddHikeFormState(
@@ -197,7 +249,7 @@ data class AddHikeFormState(
     val hikeLength: Double? = null,
     val lengthUnit: String = "km",
     val duration: String = "",
-    val elevation: String = "", // NEW
+    val elevation: String = "",
     val difficultyLevel: String = "Easy",
     val parkingAvailable: Boolean = false,
     val trailType: String = "Loop",
@@ -211,4 +263,14 @@ data class SearchFilters(
     val location: String? = null,
     val selectedDate: Date? = null,
     val lengthRange: ClosedRange<Double>? = null
+)
+
+data class AddObservationFormState(
+    val observationText: String = "",
+    val observationTime: Date? = Date(),
+    val additionalComments: String = "",
+    val photoUrl: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val errorMessage: String? = null
 )

@@ -2,20 +2,18 @@ package com.vinn.vhike.ui.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Landscape
-import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.ShutterSpeed
-import androidx.compose.material.icons.filled.Terrain
+// ... other imports
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -30,7 +28,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -42,6 +39,7 @@ import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
+// ... other imports
 import com.vinn.vhike.data.db.Observation
 import com.vinn.vhike.ui.theme.AppTeal
 import com.vinn.vhike.ui.theme.LightGray
@@ -54,16 +52,16 @@ import java.util.Locale
 fun HikeDetailScreen(
     hikeId: Long,
     onNavigateBack: () -> Unit,
+    onAddObservationClick: (Long) -> Unit,
+    onObservationClick: (Long) -> Unit,
     viewModel: HikeViewModel = hiltViewModel()
 ) {
     val allHikes by viewModel.allHikes.collectAsState(initial = emptyList())
     val hike = allHikes.find { it.id == hikeId }
 
-    // State for tabs
     var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("Observations", "Coming Soon")
+    val tabs = listOf("Observations", "Map") // Renamed from "Coming Soon"
 
-    // Fetch observations
     val observations by viewModel.getObservationsForHike(hikeId)
         .collectAsState(initial = emptyList())
 
@@ -88,17 +86,23 @@ fun HikeDetailScreen(
                     titleContentColor = Color.Black
                 )
             )
+        },
+        // --- NEW Floating Action Button ---
+        floatingActionButton = {
+            if (selectedTab == 0 && hike != null) { // Only show on Observations tab
+                FloatingActionButton(
+                    onClick = { onAddObservationClick(hike.id) },
+                    containerColor = AppTeal,
+                    contentColor = Color.White,
+                    shape = CircleShape
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Observation")
+                }
+            }
         }
     ) { paddingValues ->
         if (hike == null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("Hike not found or loading...")
-            }
+            // ... (loading state) ...
         } else {
             // --- Map variables ---
             val cameraPositionState = rememberCameraPositionState()
@@ -121,24 +125,40 @@ fun HikeDetailScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f) // Take up remaining space
+                        .weight(1f)
                         .then(
                             if (selectedTab == 0) Modifier.verticalScroll(scrollState)
                             else Modifier
                         )
                 ) {
-                    // --- MAP/IMAGE HEADER ---
+                    // --- MAP/IMAGE HEADER (Stays static) ---
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(250.dp)
                             .background(LightGray)
                     ) {
-                        if (hike.latitude != null && hike.longitude != null) {
+                        if (hike.latitude != null && hike.longitude != null && selectedTab == 1) {
+                            // Show interactive map only on Map tab
                             GoogleMap(
                                 modifier = Modifier.fillMaxSize(),
                                 cameraPositionState = cameraPositionState,
-                                uiSettings = uiSettings
+                                uiSettings = uiSettings.copy(zoomControlsEnabled = true)
+                            ) {
+                                Marker(
+                                    state = MarkerState(position = hikeLocation),
+                                    title = hike.hikeName
+                                )
+                            }
+                        } else if (hike.latitude != null && hike.longitude != null) {
+                            // Show static map on Observations tab
+                            GoogleMap(
+                                modifier = Modifier.fillMaxSize(),
+                                cameraPositionState = cameraPositionState,
+                                uiSettings = uiSettings.copy(
+                                    scrollGesturesEnabled = false,
+                                    zoomGesturesEnabled = false
+                                )
                             ) {
                                 Marker(
                                     state = MarkerState(position = hikeLocation),
@@ -168,7 +188,6 @@ fun HikeDetailScreen(
                         }
                     }
 
-                    // --- STATS ROW ---
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -207,32 +226,11 @@ fun HikeDetailScreen(
                     }
 
                     when (selectedTab) {
-                        0 -> ObservationList(observations = observations)
-                        1 -> Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .fillMaxHeight()
-                        ) {
-                            if (hike.latitude != null && hike.longitude != null) {
-                                GoogleMap(
-                                    modifier = Modifier.fillMaxSize(),
-                                    cameraPositionState = cameraPositionState,
-                                    uiSettings = uiSettings.copy(zoomControlsEnabled = true)
-                                ) {
-                                    Marker(
-                                        state = MarkerState(position = hikeLocation),
-                                        title = hike.hikeName
-                                    )
-                                }
-                            } else {
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text("No map data available", color = Color.Gray)
-                                }
-                            }
-                        }
+                        0 -> ObservationList(
+                            observations = observations,
+                            onObservationClick = onObservationClick
+                        )
+                        1 -> { /* Map is already handled in the header */ }
                     }
                 }
             }
@@ -258,7 +256,10 @@ fun StatItem(value: String, label: String) {
 }
 
 @Composable
-fun ObservationList(observations: List<Observation>) {
+fun ObservationList(
+    observations: List<Observation>,
+    onObservationClick: (Long) -> Unit
+) {
     if (observations.isEmpty()) {
         Box(
             modifier = Modifier
@@ -266,29 +267,36 @@ fun ObservationList(observations: List<Observation>) {
                 .padding(32.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text("No observations added for this hike.", color = Color.Gray)
+            Text("No observations yet. Tap the '+' button to add one!", color = Color.Gray)
         }
     } else {
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(max = 800.dp), // Avoid LazyColumn in Column scroll conflict
-            contentPadding = PaddingValues(16.dp),
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            items(observations) { observation ->
-                ObservationItem(observation = observation)
+            observations.forEach { observation ->
+                ObservationItem(
+                    observation = observation,
+                    onClick = { onObservationClick(observation.id) }
+                )
             }
         }
     }
 }
 
 @Composable
-fun ObservationItem(observation: Observation) {
+fun ObservationItem(
+    observation: Observation,
+    onClick: () -> Unit
+) {
     val timeFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -299,7 +307,7 @@ fun ObservationItem(observation: Observation) {
         ) {
             Image(
                 painter = rememberAsyncImagePainter(
-                    "https://placehold.co/200x200/e0e0e0/666666?text=Photo"
+                    model = observation.photoUrl ?: "https://placehold.co/200x200/e0e0e0/666666?text=Photo"
                 ),
                 contentDescription = observation.observationText,
                 contentScale = ContentScale.Crop,

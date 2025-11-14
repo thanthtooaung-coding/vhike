@@ -53,7 +53,7 @@ fun HikeConfirmationScreen(
         Scaffold(
             topBar = {
                 CenterAlignedTopAppBar(
-                    title = { Text("Hike Logged") },
+                    title = { Text("Hike Confirmation") },
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {
                             Icon(Icons.Default.Close, contentDescription = "Close")
@@ -79,7 +79,7 @@ fun HikeConfirmationScreen(
         Scaffold(
             topBar = {
                 CenterAlignedTopAppBar(
-                    title = { Text("Hike Logged") },
+                    title = { Text("Hike Confirmation") },
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {
                             Icon(Icons.Default.Close, contentDescription = "Close")

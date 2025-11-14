@@ -7,10 +7,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.vinn.vhike.ui.screens.AddHikeScreen
-import com.vinn.vhike.ui.screens.HikeConfirmationScreen // IMPORT NEW SCREEN
+import com.vinn.vhike.ui.screens.AddObservationScreen
+import com.vinn.vhike.ui.screens.HikeConfirmationScreen
 import com.vinn.vhike.ui.screens.HikeDetailScreen
 import com.vinn.vhike.ui.screens.HikeListScreen
 import com.vinn.vhike.ui.screens.MapPickerScreen
+import com.vinn.vhike.ui.screens.ObservationDetailScreen
 import com.vinn.vhike.ui.screens.SearchHikeScreen
 
 object AppDestinations {
@@ -20,7 +22,10 @@ object AppDestinations {
     const val HIKE_DETAIL = "hike_detail"
     const val HIKE_ID_ARG = "hikeId"
     const val MAP_PICKER = "map_picker"
-    const val HIKE_CONFIRMATION = "hike_confirmation" // NEW DESTINATION
+    const val HIKE_CONFIRMATION = "hike_confirmation"
+    const val ADD_OBSERVATION = "add_observation"
+    const val OBSERVATION_DETAIL = "observation_detail"
+    const val OBSERVATION_ID_ARG = "observationId"
 }
 
 @Composable
@@ -44,11 +49,9 @@ fun AppNavigation(navController: NavHostController) {
                 navBackStackEntry = navBackStackEntry,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToMap = { navController.navigate(AppDestinations.MAP_PICKER) },
-                onHikeSaved = { newHikeId -> // NEW: Handle save navigation
+                onHikeSaved = { newHikeId ->
                     navController.navigate("${AppDestinations.HIKE_CONFIRMATION}/$newHikeId") {
-                        // Pop AddHikeScreen off the stack
                         popUpTo(AppDestinations.ADD_HIKE) { inclusive = true }
-                        // Ensure HikeList is the screen we return to
                         launchSingleTop = true
                     }
                 }
@@ -59,7 +62,6 @@ fun AppNavigation(navController: NavHostController) {
             SearchHikeScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onHikeClick = { hikeId ->
-                    // Navigate to the new detail screen
                     navController.navigate("${AppDestinations.HIKE_DETAIL}/$hikeId")
                 }
             )
@@ -73,10 +75,15 @@ fun AppNavigation(navController: NavHostController) {
         ) { backStackEntry ->
             val hikeId = backStackEntry.arguments?.getLong(AppDestinations.HIKE_ID_ARG)
             if (hikeId != null) {
-                // This now points to the NEWLY DESIGNED detail screen
                 HikeDetailScreen(
                     hikeId = hikeId,
-                    onNavigateBack = { navController.popBackStack() }
+                    onNavigateBack = { navController.popBackStack() },
+                    onAddObservationClick = {
+                        navController.navigate("${AppDestinations.ADD_OBSERVATION}/$hikeId")
+                    },
+                    onObservationClick = { observationId ->
+                        navController.navigate("${AppDestinations.OBSERVATION_DETAIL}/$observationId")
+                    }
                 )
             }
         }
@@ -92,7 +99,6 @@ fun AppNavigation(navController: NavHostController) {
             )
         }
 
-        // NEW: Composable for the confirmation screen
         composable(
             route = "${AppDestinations.HIKE_CONFIRMATION}/{${AppDestinations.HIKE_ID_ARG}}",
             arguments = listOf(navArgument(AppDestinations.HIKE_ID_ARG) {
@@ -103,11 +109,42 @@ fun AppNavigation(navController: NavHostController) {
             if (hikeId != null) {
                 HikeConfirmationScreen(
                     hikeId = hikeId,
-                    onNavigateBack = {
-                        // Go back to the list, not the add form
-                        navController.popBackStack(AppDestinations.HIKE_LIST, false)
-                    },
-                    onEditHike = { /* TODO: Navigate to AddHike with ID */ }
+                    onNavigateBack = { navController.popBackStack() },
+                    onEditHike = {
+                        navController.navigate("${AppDestinations.HIKE_DETAIL}/$hikeId") {
+                            popUpTo(AppDestinations.HIKE_CONFIRMATION) { inclusive = true }
+                        }
+                    }
+                )
+            }
+        }
+
+        composable(
+            route = "${AppDestinations.ADD_OBSERVATION}/{${AppDestinations.HIKE_ID_ARG}}",
+            arguments = listOf(navArgument(AppDestinations.HIKE_ID_ARG) {
+                type = NavType.LongType
+            })
+        ) { backStackEntry ->
+            val hikeId = backStackEntry.arguments?.getLong(AppDestinations.HIKE_ID_ARG)
+            if (hikeId != null) {
+                AddObservationScreen(
+                    hikeId = hikeId,
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+        }
+
+        composable(
+            route = "${AppDestinations.OBSERVATION_DETAIL}/{${AppDestinations.OBSERVATION_ID_ARG}}",
+            arguments = listOf(navArgument(AppDestinations.OBSERVATION_ID_ARG) {
+                type = NavType.LongType
+            })
+        ) { backStackEntry ->
+            val observationId = backStackEntry.arguments?.getLong(AppDestinations.OBSERVATION_ID_ARG)
+            if (observationId != null) {
+                ObservationDetailScreen(
+                    observationId = observationId,
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
         }

@@ -24,5 +24,8 @@ data class Observation(
     val hikeId: Long,
     val observationText: String,
     val observationTime: Date,
-    val additionalComments: String?
+    val additionalComments: String?,
+    val photoUrl: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null
 )

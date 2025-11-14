@@ -51,7 +51,7 @@ interface HikeDao {
         "SELECT * FROM hike_registry WHERE " +
                 "(:name IS NULL OR hikeName LIKE '%' || :name || '%') AND " +
                 "(:location IS NULL OR location LIKE '%' || :location || '%') AND " +
-        "(:date IS NULL OR hikeDate = :date) AND " +
+                "(:date IS NULL OR hikeDate = :date) AND " +
                 "(:lengthMin IS NULL OR hikeLength >= :lengthMin) AND " +
                 "(:lengthMax IS NULL OR hikeLength <= :lengthMax)"
     )
@@ -79,7 +79,7 @@ interface HikeDao {
     fun getObservationById(observationId: Long): Flow<Observation?>
 }
 
-@Database(entities = [Hike::class, Observation::class], version = 3, exportSchema = false)
+@Database(entities = [Hike::class, Observation::class], version = 5, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class HikeDatabase : RoomDatabase() {
 
