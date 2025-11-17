@@ -318,20 +318,44 @@ class HikeViewModel @Inject constructor(
         )
     }
 
-    fun resetObservationForm() {
-        _addObservationUiState.value = AddObservationFormState()
+    fun resetObservationForm(hikeId: Long? = null) {
+        _addObservationUiState.value = AddObservationFormState(hikeId = hikeId)
     }
 
-    fun saveNewObservation(hikeId: Long) {
+    fun loadObservationForEditing(observationId: Long) {
+        viewModelScope.launch {
+            val observation = hikeRepository.getObservationDetails(observationId).firstOrNull()
+            if (observation != null) {
+                _addObservationUiState.value = AddObservationFormState(
+                    observationId = observation.id,
+                    hikeId = observation.hikeId,
+                    observationText = observation.observationText,
+                    observationTime = observation.observationTime,
+                    additionalComments = observation.additionalComments ?: "",
+                    photoUrl = observation.photoUrl,
+                    latitude = observation.latitude,
+                    longitude = observation.longitude,
+                    errorMessage = null
+                )
+            }
+        }
+    }
+
+    fun saveObservation() {
         val currentState = _addObservationUiState.value
         if (currentState.observationText.isBlank()) {
             _addObservationUiState.value = currentState.copy(errorMessage = "Observation text is required.")
             return
         }
+        if (currentState.hikeId == null) {
+            _addObservationUiState.value = currentState.copy(errorMessage = "Hike ID is missing.")
+            return
+        }
 
         viewModelScope.launch {
-            val newObservation = Observation(
-                hikeId = hikeId,
+            val observation = Observation(
+                id = currentState.observationId ?: 0L,
+                hikeId = currentState.hikeId,
                 observationText = currentState.observationText,
                 observationTime = currentState.observationTime ?: Date(),
                 additionalComments = currentState.additionalComments,
@@ -339,9 +363,20 @@ class HikeViewModel @Inject constructor(
                 latitude = currentState.latitude,
                 longitude = currentState.longitude
             )
-            hikeRepository.addObservation(newObservation)
+
+            if (currentState.observationId == null) {
+                hikeRepository.addObservation(observation)
+            } else {
+                hikeRepository.updateObservation(observation)
+            }
 
             _addObservationUiState.value = AddObservationFormState()
+        }
+    }
+
+    fun deleteObservation(observation: Observation) {
+        viewModelScope.launch {
+            hikeRepository.removeObservation(observation)
         }
     }
 }
@@ -372,6 +407,8 @@ data class SearchFilters(
 )
 
 data class AddObservationFormState(
+    val observationId: Long? = null,
+    val hikeId: Long? = null,
     val observationText: String = "",
     val observationTime: Date? = Date(),
     val additionalComments: String = "",

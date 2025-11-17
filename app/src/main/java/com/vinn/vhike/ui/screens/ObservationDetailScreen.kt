@@ -13,7 +13,10 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,6 +45,7 @@ import java.util.Locale
 fun ObservationDetailScreen(
     observationId: Long,
     onNavigateBack: () -> Unit,
+    onEditObservation: (hikeId: Long, observationId: Long) -> Unit,
     viewModel: HikeViewModel = hiltViewModel()
 ) {
     val observation by produceState<Observation?>(initialValue = null, observationId) {
@@ -53,6 +57,32 @@ fun ObservationDetailScreen(
 
     val backgroundColor = Color(0xFFF5F5F5)
 
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    if (showDeleteDialog && observation != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Confirm Deletion") },
+            text = { Text("Are you sure you want to delete this observation?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteDialog = false
+                        viewModel.deleteObservation(observation!!)
+                        onNavigateBack()
+                    }
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -63,10 +93,14 @@ fun ObservationDetailScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { /* TODO: Edit logic */ }) {
+                    IconButton(onClick = {
+                        observation?.let {
+                            onEditObservation(it.hikeId, it.id)
+                        }
+                    }) {
                         Icon(Icons.Default.Edit, contentDescription = "Edit")
                     }
-                    IconButton(onClick = { /* TODO: Delete logic */ }) {
+                    IconButton(onClick = { showDeleteDialog = true }) {
                         Icon(Icons.Default.Delete, contentDescription = "Delete")
                     }
                 },
@@ -216,7 +250,8 @@ fun ObservationDetailScreen(
                             Text(
                                 "No location data captured for this observation.",
                                 style = MaterialTheme.typography.bodyLarge,
-                                color = Color.Gray
+                                color = Color.Gray,
+                                modifier = Modifier.padding(bottom = 16.dp)
                             )
                         }
                     }

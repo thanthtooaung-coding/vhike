@@ -135,18 +135,23 @@ fun AppNavigation(navController: NavHostController) {
         }
 
         composable(
-            route = "${AppDestinations.ADD_OBSERVATION}/{${AppDestinations.HIKE_ID_ARG}}",
-            arguments = listOf(navArgument(AppDestinations.HIKE_ID_ARG) {
-                type = NavType.LongType
-            })
+            route = "${AppDestinations.ADD_OBSERVATION}/{${AppDestinations.HIKE_ID_ARG}}?${AppDestinations.OBSERVATION_ID_ARG}={${AppDestinations.OBSERVATION_ID_ARG}}",
+            arguments = listOf(
+                navArgument(AppDestinations.HIKE_ID_ARG) { type = NavType.LongType },
+                navArgument(AppDestinations.OBSERVATION_ID_ARG) {
+                    type = NavType.LongType
+                    defaultValue = -1L
+                }
+            )
         ) { backStackEntry ->
-            val hikeId = backStackEntry.arguments?.getLong(AppDestinations.HIKE_ID_ARG)
-            if (hikeId != null) {
-                AddObservationScreen(
-                    hikeId = hikeId,
-                    onNavigateBack = { navController.popBackStack() }
-                )
-            }
+            val hikeId = backStackEntry.arguments?.getLong(AppDestinations.HIKE_ID_ARG)!!
+            val observationIdToEdit = backStackEntry.arguments?.getLong(AppDestinations.OBSERVATION_ID_ARG)!!
+
+            AddObservationScreen(
+                hikeId = hikeId,
+                observationIdToEdit = observationIdToEdit,
+                onNavigateBack = { navController.popBackStack() }
+            )
         }
 
         composable(
@@ -159,7 +164,10 @@ fun AppNavigation(navController: NavHostController) {
             if (observationId != null) {
                 ObservationDetailScreen(
                     observationId = observationId,
-                    onNavigateBack = { navController.popBackStack() }
+                    onNavigateBack = { navController.popBackStack() },
+                    onEditObservation = { hikeId, obsId ->
+                        navController.navigate("${AppDestinations.ADD_OBSERVATION}/$hikeId?${AppDestinations.OBSERVATION_ID_ARG}=$obsId")
+                    }
                 )
             }
         }

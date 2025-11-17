@@ -60,12 +60,15 @@ import java.util.Locale
 @Composable
 fun AddObservationScreen(
     hikeId: Long,
+    observationIdToEdit: Long,
     onNavigateBack: () -> Unit,
     viewModel: HikeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.addObservationUiState.collectAsState()
     val scrollState = rememberScrollState()
     val context = LocalContext.current
+
+    val isEditing = observationIdToEdit != -1L
 
     val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
 
@@ -93,6 +96,14 @@ fun AddObservationScreen(
                     Manifest.permission.ACCESS_COARSE_LOCATION
                 )
             )
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (isEditing) {
+            viewModel.loadObservationForEditing(observationIdToEdit)
+        } else {
+            viewModel.resetObservationForm(hikeId = hikeId)
         }
     }
 
@@ -156,7 +167,7 @@ fun AddObservationScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Log New Observation") },
+                title = { Text(if (isEditing) "Edit Observation" else "Log New Observation") },
                 navigationIcon = {
                     IconButton(onClick = {
                         viewModel.resetObservationForm()
@@ -174,7 +185,7 @@ fun AddObservationScreen(
         bottomBar = {
             Button(
                 onClick = {
-                    viewModel.saveNewObservation(hikeId)
+                    viewModel.saveObservation()
                     onNavigateBack()
                 },
                 modifier = Modifier
@@ -185,7 +196,7 @@ fun AddObservationScreen(
                 enabled = uiState.observationText.isNotBlank()
             ) {
                 Text(
-                    text = "Save Observation",
+                    text = if (isEditing) "Update Observation" else "Save Observation",
                     fontSize = 18.sp,
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
