@@ -18,7 +18,7 @@
         android:theme="@style/Theme.Vhike">
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyB2d5RFZlG6ZQzb4TChAPJ_8rmVd473VsQ" />
+            android:value="@string/google_maps_key" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

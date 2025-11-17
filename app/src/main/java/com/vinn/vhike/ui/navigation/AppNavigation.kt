@@ -36,7 +36,9 @@ fun AppNavigation(navController: NavHostController) {
     ) {
         composable(AppDestinations.HIKE_LIST) {
             HikeListScreen(
-                onAddHike = { navController.navigate(AppDestinations.ADD_HIKE) },
+                onAddHike = {
+                    navController.navigate(AppDestinations.ADD_HIKE)
+                },
                 onSearchClick = { navController.navigate(AppDestinations.SEARCH_HIKES) },
                 onHikeClick = { hikeId ->
                     navController.navigate("${AppDestinations.HIKE_DETAIL}/$hikeId")
@@ -44,15 +46,28 @@ fun AppNavigation(navController: NavHostController) {
             )
         }
 
-        composable(AppDestinations.ADD_HIKE) { navBackStackEntry ->
+        composable(
+            route = "${AppDestinations.ADD_HIKE}?${AppDestinations.HIKE_ID_ARG}={${AppDestinations.HIKE_ID_ARG}}",
+            arguments = listOf(navArgument(AppDestinations.HIKE_ID_ARG) {
+                type = NavType.LongType
+                defaultValue = -1L
+            })
+        ) { navBackStackEntry ->
+            val hikeIdToEdit = navBackStackEntry.arguments?.getLong(AppDestinations.HIKE_ID_ARG)
+
             AddHikeScreen(
                 navBackStackEntry = navBackStackEntry,
+                hikeIdToEdit = if (hikeIdToEdit == -1L) null else hikeIdToEdit,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToMap = { navController.navigate(AppDestinations.MAP_PICKER) },
-                onHikeSaved = { newHikeId ->
-                    navController.navigate("${AppDestinations.HIKE_CONFIRMATION}/$newHikeId") {
-                        popUpTo(AppDestinations.ADD_HIKE) { inclusive = true }
-                        launchSingleTop = true
+                onHikeSaved = { savedHikeId ->
+                    if (hikeIdToEdit == -1L) {
+                        navController.navigate("${AppDestinations.HIKE_CONFIRMATION}/$savedHikeId") {
+                            popUpTo("${AppDestinations.ADD_HIKE}?${AppDestinations.HIKE_ID_ARG}={${AppDestinations.HIKE_ID_ARG}}") { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    } else {
+                        navController.popBackStack()
                     }
                 }
             )
@@ -109,11 +124,11 @@ fun AppNavigation(navController: NavHostController) {
             if (hikeId != null) {
                 HikeConfirmationScreen(
                     hikeId = hikeId,
-                    onNavigateBack = { navController.popBackStack() },
-                    onEditHike = {
-                        navController.navigate("${AppDestinations.HIKE_DETAIL}/$hikeId") {
-                            popUpTo(AppDestinations.HIKE_CONFIRMATION) { inclusive = true }
-                        }
+                    onNavigateBack = {
+                        navController.popBackStack(AppDestinations.HIKE_LIST, false)
+                    },
+                    onEditHike = { hikeIdToEdit ->
+                        navController.navigate("${AppDestinations.ADD_HIKE}?${AppDestinations.HIKE_ID_ARG}=$hikeIdToEdit")
                     }
                 )
             }

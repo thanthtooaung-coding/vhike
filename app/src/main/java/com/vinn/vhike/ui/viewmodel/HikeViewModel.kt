@@ -2,11 +2,15 @@ package com.vinn.vhike.ui.viewmodel
 
 import android.content.Context
 import android.location.Geocoder
+import android.net.Uri
+import android.provider.OpenableColumns
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.android.gms.maps.model.LatLng
 import com.vinn.vhike.data.db.Hike
 import com.vinn.vhike.data.db.Observation
+import com.vinn.vhike.data.repository.GitHubRepository
 import com.vinn.vhike.data.repository.HikeRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -14,16 +18,18 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
 
 @HiltViewModel
 class HikeViewModel @Inject constructor(
-    private val hikeRepository: HikeRepository
+    private val hikeRepository: HikeRepository,
+    private val gitHubRepository: GitHubRepository
 ) : ViewModel() {
 
     val allHikes: Flow<List<Hike>> = hikeRepository.allHikes
@@ -31,8 +37,8 @@ class HikeViewModel @Inject constructor(
     private val _addHikeUiState = MutableStateFlow(AddHikeFormState())
     val addHikeUiState: StateFlow<AddHikeFormState> = _addHikeUiState.asStateFlow()
 
-    private val _newHikeId = MutableStateFlow<Long?>(null)
-    val newHikeId: StateFlow<Long?> = _newHikeId.asStateFlow()
+    private val _savedHikeId = MutableStateFlow<Long?>(null)
+    val savedHikeId: StateFlow<Long?> = _savedHikeId.asStateFlow()
 
     private val _searchFilterState = MutableStateFlow(SearchFilters())
     val searchFilterState: StateFlow<SearchFilters> = _searchFilterState.asStateFlow()
@@ -40,7 +46,6 @@ class HikeViewModel @Inject constructor(
     private val _searchResultState = MutableStateFlow<List<Hike>>(emptyList())
     val searchResultState: StateFlow<List<Hike>> = _searchResultState.asStateFlow()
 
-    // --- NEW: Observation Form State ---
     private val _addObservationUiState = MutableStateFlow(AddObservationFormState())
     val addObservationUiState: StateFlow<AddObservationFormState> = _addObservationUiState.asStateFlow()
 
@@ -105,7 +110,35 @@ class HikeViewModel @Inject constructor(
         }
     }
 
-    fun saveNewHike() {
+    fun loadHikeForEditing(hikeId: Long) {
+        viewModelScope.launch {
+            val hike = hikeRepository.getHikeDetails(hikeId).firstOrNull()
+            if (hike != null) {
+                _addHikeUiState.value = AddHikeFormState(
+                    hikeId = hike.id,
+                    hikeName = hike.hikeName,
+                    location = hike.location,
+                    description = hike.description ?: "",
+                    hikeDate = hike.hikeDate,
+                    hikeLength = hike.hikeLength,
+                    duration = hike.duration,
+                    elevation = hike.elevation?.toString() ?: "",
+                    difficultyLevel = hike.difficultyLevel,
+                    parkingAvailable = hike.parkingAvailable,
+                    trailType = hike.trailType,
+                    latitude = hike.latitude,
+                    longitude = hike.longitude,
+                    errorMessage = null
+                )
+            }
+        }
+    }
+
+    fun resetAddHikeForm() {
+        _addHikeUiState.value = AddHikeFormState()
+    }
+
+    fun saveHike() {
         val currentState = _addHikeUiState.value
         // ... (validation logic) ...
         if (currentState.hikeName.isBlank() || currentState.location.isBlank()) {
@@ -123,7 +156,8 @@ class HikeViewModel @Inject constructor(
         val elevationAsDouble = currentState.elevation.toDoubleOrNull()
 
         viewModelScope.launch {
-            val newHike = Hike(
+            val hikeToSave = Hike(
+                id = currentState.hikeId ?: 0L,
                 hikeName = currentState.hikeName,
                 location = currentState.location,
                 hikeDate = currentState.hikeDate,
@@ -137,14 +171,30 @@ class HikeViewModel @Inject constructor(
                 duration = currentState.duration,
                 elevation = elevationAsDouble
             )
-            val newId = hikeRepository.addNewHike(newHike)
-            _addHikeUiState.value = AddHikeFormState()
-            _newHikeId.value = newId
+
+            val savedId = if (currentState.hikeId == null) {
+                hikeRepository.addNewHike(hikeToSave)
+            } else {
+                hikeRepository.updateHikeDetails(hikeToSave)
+                currentState.hikeId
+            }
+
+            if (currentState.hikeId == null) {
+                _addHikeUiState.value = AddHikeFormState()
+            }
+
+            _savedHikeId.value = savedId
         }
     }
 
-    fun onNavigationToConfirmationDone() {
-        _newHikeId.value = null
+    fun deleteHike(hike: Hike) {
+        viewModelScope.launch {
+            hikeRepository.removeHike(hike)
+        }
+    }
+
+    fun onNavigationDone() {
+        _savedHikeId.value = null
     }
 
     // --- Search Functions ---
@@ -206,6 +256,61 @@ class HikeViewModel @Inject constructor(
         _addObservationUiState.value = _addObservationUiState.value.copy(photoUrl = url)
     }
 
+    fun uploadObservationPhoto(uri: Uri, context: Context) {
+        viewModelScope.launch {
+
+            val (fileName, fileBytes) = readUriToBytes(uri, context)
+
+            if (fileBytes == null || fileName == null) {
+                Log.e("HikeViewModel", "Failed to read file from Uri")
+                _addObservationUiState.value = _addObservationUiState.value.copy(errorMessage = "Failed to read file")
+                return@launch
+            }
+
+            val commitMessage = ":sparkles: feat: Add observation photo $fileName"
+
+            val uploadedUrl = gitHubRepository.uploadFile(fileBytes, fileName, commitMessage)
+
+            if (uploadedUrl != null) {
+                _addObservationUiState.value = _addObservationUiState.value.copy(
+                    photoUrl = uploadedUrl,
+                    errorMessage = null
+                )
+            } else {
+                _addObservationUiState.value = _addObservationUiState.value.copy(
+                    errorMessage = "Upload failed. Please try again."
+                )
+            }
+        }
+    }
+
+    private suspend fun readUriToBytes(uri: Uri, context: Context): Pair<String?, ByteArray?> = withContext(Dispatchers.IO) {
+        try {
+            // Get filename
+            var fileName: String? = null
+            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex != -1) {
+                        fileName = cursor.getString(nameIndex)
+                    }
+                }
+            }
+
+            val inputStream = context.contentResolver.openInputStream(uri)
+            val byteBuffer = ByteArrayOutputStream()
+            val buffer = ByteArray(1024)
+            var len: Int
+            while (inputStream!!.read(buffer).also { len = it } != -1) {
+                byteBuffer.write(buffer, 0, len)
+            }
+            Pair(fileName ?: "unknown_file", byteBuffer.toByteArray())
+        } catch (e: Exception) {
+            Log.e("HikeViewModel", "Failed to read Uri to bytes", e)
+            Pair(null, null)
+        }
+    }
+
     fun onObservationLocationSet(latLng: LatLng) {
         _addObservationUiState.value = _addObservationUiState.value.copy(
             latitude = latLng.latitude,
@@ -242,6 +347,7 @@ class HikeViewModel @Inject constructor(
 }
 
 data class AddHikeFormState(
+    val hikeId: Long? = null, // NEW: To know if we are editing
     val hikeName: String = "",
     val location: String = "",
     val description: String = "",

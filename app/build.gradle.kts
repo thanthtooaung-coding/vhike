@@ -1,10 +1,17 @@
+import java.util.Properties
+import java.io.FileInputStream
+
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(FileInputStream(localPropertiesFile))
+}
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
-    // ADDED PLUGINS
     alias(libs.plugins.kotlin.kapt)
     alias(libs.plugins.dagger.hilt.android)
-    // 1. ADD THIS NEW PLUGIN
     alias(libs.plugins.kotlin.compose.compiler)
 }
 
@@ -24,6 +31,14 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+        buildFeatures {
+            buildConfig = true
+        }
+
+        buildConfigField("String", "GITHUB_TOKEN", "\"${localProperties.getProperty("github.token")}\"")
+        buildConfigField("String", "GITHUB_OWNER", "\"${localProperties.getProperty("github.owner")}\"")
+        buildConfigField("String", "GITHUB_REPO", "\"${localProperties.getProperty("github.repo")}\"")
+        buildConfigField("String", "GITHUB_TARGET_FOLDER", "\"${localProperties.getProperty("github.folder")}\"")
     }
 
     buildTypes {
@@ -87,6 +102,7 @@ dependencies {
     // Navigation
     implementation(libs.androidx.navigation.compose)
 
+    implementation("com.google.android.libraries.places:places:3.5.0")
     // Hilt (Dependency Injection)
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)
@@ -99,6 +115,8 @@ dependencies {
 
     // Coil (Images)
     implementation(libs.coil.compose)
+
+    implementation("org.kohsuke:github-api:1.321")
 
     implementation("com.google.maps.android:maps-compose:4.3.3")
 

@@ -44,9 +44,10 @@ import java.util.Date
 @Composable
 fun AddHikeScreen(
     navBackStackEntry: NavBackStackEntry,
+    hikeIdToEdit: Long?,
     onNavigateBack: () -> Unit,
     onNavigateToMap: () -> Unit,
-    onHikeSaved: (Long) -> Unit, // ADDED: Callback for navigation
+    onHikeSaved: (Long) -> Unit,
     viewModel: HikeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.addHikeUiState.collectAsState()
@@ -54,13 +55,24 @@ fun AddHikeScreen(
 
     val context = LocalContext.current
 
-    // NEW: Observe save state and navigate
-    val newHikeId by viewModel.newHikeId.collectAsState()
+    val isEditing = hikeIdToEdit != null
 
-    LaunchedEffect(newHikeId) {
-        newHikeId?.let { id ->
+    val savedHikeId by viewModel.savedHikeId.collectAsState()
+
+    LaunchedEffect(savedHikeId) {
+        savedHikeId?.let { id ->
             onHikeSaved(id)
-            viewModel.onNavigationToConfirmationDone() // Reset the state
+            viewModel.onNavigationDone()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (hikeIdToEdit != null) {
+            viewModel.loadHikeForEditing(hikeIdToEdit)
+        } else {
+            if (viewModel.addHikeUiState.value.hikeName.isBlank()) {
+                viewModel.resetAddHikeForm()
+            }
         }
     }
 
@@ -77,7 +89,7 @@ fun AddHikeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Add a New Hike") },
+                title = { Text(if (isEditing) "Edit Hike" else "Add a New Hike") }, // Dynamic title
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -92,7 +104,7 @@ fun AddHikeScreen(
         bottomBar = {
             Button(
                 onClick = {
-                    viewModel.saveNewHike() // Just call save, LaunchedEffect handles navigation
+                    viewModel.saveHike()
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -101,7 +113,7 @@ fun AddHikeScreen(
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Text(
-                    text = "Save Hike",
+                    text = if (isEditing) "Update Hike" else "Save Hike",
                     fontSize = 18.sp,
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
@@ -246,8 +258,6 @@ fun AddHikeScreen(
     }
 }
 
-// --- Reusable Composables for the Form ---
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FormTextField(
@@ -332,15 +342,20 @@ fun DatePickerField(
             placeholder = { Text("Select a date", color = Color.Gray) },
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { datePickerDialog.show() }, // Make the whole field clickable
+                .clickable { datePickerDialog.show() },
             shape = RoundedCornerShape(12.dp),
             colors = TextFieldDefaults.outlinedTextFieldColors(
                 containerColor = LightGray,
                 unfocusedBorderColor = Color.Transparent,
-                focusedBorderColor = AppTeal
+                focusedBorderColor = AppTeal,
+                disabledTextColor = LocalContentColor.current.copy(LocalContentColor.current.alpha),
+                disabledBorderColor = Color.Transparent,
+                disabledPlaceholderColor = Color.Gray,
+                disabledLeadingIconColor = LocalContentColor.current.copy(LocalContentColor.current.alpha),
+                disabledTrailingIconColor = LocalContentColor.current.copy(LocalContentColor.current.alpha)
             ),
             readOnly = true,
-            enabled = false, // Disable text field interaction
+            enabled = false,
             trailingIcon = {
                 Icon(Icons.Default.CalendarToday, "Select Date")
             }
@@ -371,7 +386,7 @@ fun TimePickerField(
             },
             currentHour,
             currentMinute,
-            true // true for 24-hour format, false for 12-hour format
+            true
         )
     }
 
@@ -393,7 +408,12 @@ fun TimePickerField(
             colors = TextFieldDefaults.outlinedTextFieldColors(
                 containerColor = LightGray,
                 unfocusedBorderColor = Color.Transparent,
-                focusedBorderColor = AppTeal
+                focusedBorderColor = AppTeal,
+                disabledTextColor = LocalContentColor.current.copy(LocalContentColor.current.alpha),
+                disabledBorderColor = Color.Transparent,
+                disabledPlaceholderColor = Color.Gray,
+                disabledLeadingIconColor = LocalContentColor.current.copy(LocalContentColor.current.alpha),
+                disabledTrailingIconColor = LocalContentColor.current.copy(LocalContentColor.current.alpha)
             ),
             readOnly = true,
             enabled = false,

@@ -12,7 +12,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,13 +51,40 @@ fun HikeConfirmationScreen(
 
     val scrollState = rememberScrollState()
 
+    var showCancelDialog by remember { mutableStateOf(false) }
+
+    if (showCancelDialog && hike != null) {
+        AlertDialog(
+            onDismissRequest = { showCancelDialog = false },
+            title = { Text("Confirm Cancellation") },
+            text = { Text("Are you sure you want to discard this hike? Your details won't be saved.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showCancelDialog = false
+                        viewModel.deleteHike(hike)
+                        onNavigateBack()
+                    }
+                ) {
+                    Text("Discard", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCancelDialog = false }) {
+                    Text("Keep")
+                }
+            }
+        )
+    }
+
     if (hike == null) {
         Scaffold(
             topBar = {
                 CenterAlignedTopAppBar(
                     title = { Text("Hike Confirmation") },
                     navigationIcon = {
-                        IconButton(onClick = onNavigateBack) {
+                        // UPDATED: Show dialog on "X" click
+                        IconButton(onClick = { showCancelDialog = true }) {
                             Icon(Icons.Default.Close, contentDescription = "Close")
                         }
                     },
@@ -81,7 +110,7 @@ fun HikeConfirmationScreen(
                 CenterAlignedTopAppBar(
                     title = { Text("Hike Confirmation") },
                     navigationIcon = {
-                        IconButton(onClick = onNavigateBack) {
+                        IconButton(onClick = { showCancelDialog = true }) {
                             Icon(Icons.Default.Close, contentDescription = "Close")
                         }
                     },
@@ -202,7 +231,7 @@ fun HikeConfirmationScreen(
                         StatCard(
                             icon = Icons.Default.Straighten,
                             label = "Length",
-                            value = "${hike.hikeLength} ${"km"}", // Assuming km, you can grab from hike
+                            value = "${hike.hikeLength} ${"km"}",
                             modifier = Modifier.weight(1f)
                         )
                         StatCard(
@@ -260,7 +289,6 @@ fun HikeConfirmationScreen(
     }
 }
 
-// Re-using the StatCard and InfoCard composables from the original file
 @Composable
 fun StatCard(icon: ImageVector, label: String, value: String, modifier: Modifier = Modifier) {
     Box(
