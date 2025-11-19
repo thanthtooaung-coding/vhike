@@ -9,12 +9,18 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Landscape
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,9 +42,35 @@ fun HikeListScreen(
     onAddHike: () -> Unit,
     onSearchClick: () -> Unit,
     onHikeClick: (Long) -> Unit,
+    onEditHike: (Long) -> Unit,
     viewModel: HikeViewModel = hiltViewModel()
 ) {
     val hikes by viewModel.allHikes.collectAsState(initial = emptyList())
+
+    var hikeToDelete by remember { mutableStateOf<Hike?>(null) }
+
+    if (hikeToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { hikeToDelete = null },
+            title = { Text("Delete Hike") },
+            text = { Text("Are you sure you want to delete '${hikeToDelete!!.hikeName}'? This will also delete all its observations.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteHike(hikeToDelete!!)
+                        hikeToDelete = null
+                    }
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { hikeToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -86,7 +118,12 @@ fun HikeListScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(hikes) { hike ->
-                        HikeListItem(hike = hike, onClick = { onHikeClick(hike.id) })
+                        HikeListItem(
+                            hike = hike,
+                            onClick = { onHikeClick(hike.id) },
+                            onEdit = { onEditHike(hike.id) },
+                            onDelete = { hikeToDelete = hike }
+                        )
                     }
                 }
             }
@@ -95,19 +132,24 @@ fun HikeListScreen(
 }
 
 @Composable
-fun HikeListItem(hike: Hike, onClick: () -> Unit) {
+fun HikeListItem(
+    hike: Hike,
+    onClick: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
     val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+    var showMenu by remember { mutableStateOf(false) }
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = LightGray),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
@@ -120,7 +162,12 @@ fun HikeListItem(hike: Hike, onClick: () -> Unit) {
                 Icon(Icons.Default.Landscape, contentDescription = null, tint = AppTeal, modifier = Modifier.size(32.dp))
             }
             Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onClick)
+                    .padding(vertical = 8.dp)
+            ) {
                 Text(hike.hikeName, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Text(hike.location, color = Color.Gray, fontSize = 14.sp)
                 Text(
@@ -128,6 +175,32 @@ fun HikeListItem(hike: Hike, onClick: () -> Unit) {
                     color = Color.Gray,
                     fontSize = 14.sp
                 )
+            }
+            Box {
+                IconButton(onClick = { showMenu = true }) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "More options")
+                }
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Edit") },
+                        onClick = {
+                            showMenu = false
+                            onEdit()
+                        },
+                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = "Edit") }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Delete") },
+                        onClick = {
+                            showMenu = false
+                            onDelete()
+                        },
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = "Delete") }
+                    )
+                }
             }
         }
     }

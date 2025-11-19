@@ -42,6 +42,9 @@ fun AppNavigation(navController: NavHostController) {
                 onSearchClick = { navController.navigate(AppDestinations.SEARCH_HIKES) },
                 onHikeClick = { hikeId ->
                     navController.navigate("${AppDestinations.HIKE_DETAIL}/$hikeId")
+                },
+                onEditHike = { hikeId ->
+                    navController.navigate("${AppDestinations.ADD_HIKE}?${AppDestinations.HIKE_ID_ARG}=$hikeId")
                 }
             )
         }
